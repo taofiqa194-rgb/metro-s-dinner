@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Star,
   MapPin,
@@ -11,7 +11,11 @@ import {
   Sparkles,
   ArrowRight,
   Share2,
+  Send,
+  AlertCircle,
+  Loader2,
 } from 'lucide-react';
+import { db, collection, addDoc, serverTimestamp, testConnection } from './lib/firebase';
 
 interface MenuItem {
   id: string;
@@ -144,6 +148,15 @@ const REVIEWS = [
 export default function App() {
   const [activeCategory, setActiveCategory] = useState<'all' | 'burgers' | 'fries' | 'sides'>('all');
   const [copiedNotification, setCopiedNotification] = useState(false);
+  const [customerName, setCustomerName] = useState('');
+  const [orderNotes, setOrderNotes] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submissionStatus, setSubmissionStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [errorMessage, setErrorMessage] = useState('');
+
+  useEffect(() => {
+    testConnection();
+  }, []);
 
   const filteredItems = activeCategory === 'all'
     ? MENU_ITEMS
@@ -170,6 +183,57 @@ export default function App() {
       navigator.clipboard.writeText(window.location.href);
       setCopiedNotification(true);
       setTimeout(() => setCopiedNotification(false), 2500);
+    }
+  };
+
+  const handleContactSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    const nameEl = document.getElementById('customerName') as HTMLInputElement | null;
+    const notesEl = document.getElementById('orderNotes') as HTMLTextAreaElement | null;
+    const name = (nameEl ? nameEl.value : customerName).trim();
+    const notes = (notesEl ? notesEl.value : orderNotes).trim();
+
+    if (!name || !notes) {
+      setErrorMessage("Please provide your name and order notes.");
+      setSubmissionStatus('error');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setSubmissionStatus('idle');
+    setErrorMessage('');
+
+    try {
+      // Save the submission directly into a collection named "incoming_leads"
+      await addDoc(collection(db, "incoming_leads"), {
+        customerName: name,
+        orderNotes: notes,
+        timestamp: serverTimestamp()
+      });
+
+      setSubmissionStatus('success');
+      setCustomerName('');
+      setOrderNotes('');
+      const formEl = document.getElementById('contactForm') as HTMLFormElement | null;
+      if (formEl) formEl.reset();
+
+      try {
+        window.alert("Awesome! Your request has been sent straight to The Metro's Diner!");
+      } catch {
+        // Fallback silently if alert is restricted in iframe
+      }
+    } catch (error) {
+      console.error("Error adding document: ", error);
+      setSubmissionStatus('error');
+      setErrorMessage("Something went wrong. Please try placing your order via WhatsApp!");
+      try {
+        window.alert("Something went wrong. Please try placing your order via WhatsApp!");
+      } catch {
+        // Fallback silently if alert is restricted in iframe
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -226,6 +290,7 @@ export default function App() {
                 4.9 ★
               </span>
             </a>
+            <a href="#contact" className="hover:text-[#CB997E] transition-colors">Pre-Order</a>
             <a href="#location" className="hover:text-[#CB997E] transition-colors">Location & Hours</a>
           </nav>
 
@@ -668,7 +733,172 @@ export default function App() {
           </div>
         </section>
 
-        {/* 6. Footer & Contact Section (Rich Natural Wood Background: var(--wood) #3F2E23) */}
+        {/* 6. Online Pre-Orders & Inquiries (Firestore Integration: incoming_leads) */}
+        <section id="contact" className="py-16 sm:py-20 bg-[#FDFBF7] border-b border-[#E5E1DA]">
+          <div className="max-w-3xl mx-auto px-4 sm:px-6">
+            <div className="text-center max-w-2xl mx-auto mb-10">
+              <span className="text-xs font-extrabold uppercase tracking-widest text-[#6B705C] bg-[#FFE8D6] px-3.5 py-1.5 rounded-full border border-[#E5E1DA]">
+                Direct Kitchen Leads
+              </span>
+              <h2 className="font-serif text-3xl sm:text-4xl font-black text-[#3F2E23] mt-3 tracking-tight">
+                Send a Pre-Order or Inquiry
+              </h2>
+              <p className="text-[#6B705C] text-sm sm:text-base mt-2">
+                Have special burger customizations, catering plans, or looking to pre-order? Leave your note below and our team receives it directly.
+              </p>
+            </div>
+
+            <div className="bg-white rounded-3xl border border-[#E5E1DA] p-6 sm:p-9 shadow-xs">
+              {submissionStatus === 'success' && (
+                <div className="mb-6 p-4 rounded-2xl bg-[#FFE8D6]/70 border border-[#CB997E]/50 text-[#3F2E23] flex items-start gap-3.5">
+                  <div className="w-8 h-8 rounded-full bg-[#25D366] text-white flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <CheckCircle2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-serif font-bold text-base text-[#3F2E23]">Awesome! Your request has been sent straight to The Metro's Diner!</h4>
+                    <p className="text-xs text-[#6B705C] mt-1">
+                      Our kitchen has logged your details in our system. You can also chat directly on WhatsApp for immediate real-time prep status.
+                    </p>
+                    <div className="mt-3 flex flex-wrap items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setSubmissionStatus('idle')}
+                        className="text-xs font-bold text-[#3F2E23] hover:text-[#CB997E] underline underline-offset-2 transition-colors cursor-pointer"
+                      >
+                        Send another request
+                      </button>
+                      <span className="text-[#E5E1DA]">•</span>
+                      <a
+                        href={getWhatsAppOrderUrl()}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs font-bold text-[#25D366] hover:text-[#1EBE5D] inline-flex items-center gap-1 transition-colors"
+                      >
+                        <MessageCircle className="w-3.5 h-3.5 fill-current" />
+                        <span>Confirm on WhatsApp</span>
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {submissionStatus === 'error' && (
+                <div className="mb-6 p-4 rounded-2xl bg-[#FFE8D6]/40 border border-red-300 text-red-900 flex items-start gap-3.5">
+                  <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <h4 className="font-bold text-sm">
+                      {errorMessage || "Something went wrong. Please try placing your order via WhatsApp!"}
+                    </h4>
+                    <p className="text-xs text-red-800/80 mt-1">
+                      Our kitchen is always active on WhatsApp for direct instant orders.
+                    </p>
+                    <a
+                      href={getWhatsAppOrderUrl(customerName ? `Order from ${customerName}` : undefined)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2.5 inline-flex items-center gap-1.5 bg-[#25D366] hover:bg-[#1EBE5D] text-white text-xs font-bold px-3.5 py-2 rounded-xl shadow-xs transition-colors"
+                    >
+                      <MessageCircle className="w-3.5 h-3.5 fill-current" />
+                      <span>Order directly via WhatsApp</span>
+                    </a>
+                  </div>
+                </div>
+              )}
+
+              {/* Exact form required: id="contactForm", inputs with id="customerName" and id="orderNotes" */}
+              <form id="contactForm" onSubmit={handleContactSubmit} className="space-y-5">
+                <div>
+                  <label htmlFor="customerName" className="block text-xs font-bold uppercase tracking-wider text-[#3F2E23] mb-1.5">
+                    Customer Name <span className="text-[#CB997E]">*</span>
+                  </label>
+                  <input
+                    id="customerName"
+                    name="customerName"
+                    type="text"
+                    required
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    placeholder="e.g. Richard Ogbedo"
+                    className="w-full px-4 py-3 bg-[#FDFBF7] border border-[#E5E1DA] rounded-xl text-sm text-[#2D241E] placeholder:text-[#6B705C]/50 focus:outline-none focus:border-[#CB997E] focus:ring-1 focus:ring-[#CB997E] transition-all"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label htmlFor="orderNotes" className="block text-xs font-bold uppercase tracking-wider text-[#3F2E23]">
+                      Order Notes <span className="text-[#CB997E]">*</span>
+                    </label>
+                    <span className="text-[11px] text-[#6B705C]">Items, customizations, pickup time</span>
+                  </div>
+
+                  {/* Quick helper items to tap */}
+                  <div className="flex flex-wrap items-center gap-1.5 mb-2.5">
+                    <span className="text-[10px] uppercase font-bold text-[#6B705C] mr-1">Quick add:</span>
+                    {[
+                      'Classic Cheeseburger',
+                      'Metro Loaded Fries',
+                      'Crispy Chicken Burger',
+                      'Glazed BBQ Wings',
+                      'Hand-Spun Milkshake',
+                    ].map((item) => (
+                      <button
+                        key={item}
+                        type="button"
+                        onClick={() => {
+                          setOrderNotes((prev) => (prev ? `${prev}, ${item}` : item));
+                        }}
+                        className="text-[11px] font-medium bg-[#FFE8D6]/60 hover:bg-[#FFE8D6] text-[#3F2E23] px-2.5 py-1 rounded-lg border border-[#E5E1DA] transition-colors cursor-pointer"
+                      >
+                        + {item}
+                      </button>
+                    ))}
+                  </div>
+
+                  <textarea
+                    id="orderNotes"
+                    name="orderNotes"
+                    required
+                    rows={4}
+                    value={orderNotes}
+                    onChange={(e) => setOrderNotes(e.target.value)}
+                    placeholder="e.g. 2 Classic Cheeseburgers with extra cheese, 1 Metro Loaded Fries. Ready for pickup around 7:00 PM."
+                    className="w-full px-4 py-3 bg-[#FDFBF7] border border-[#E5E1DA] rounded-xl text-sm text-[#2D241E] placeholder:text-[#6B705C]/50 focus:outline-none focus:border-[#CB997E] focus:ring-1 focus:ring-[#CB997E] transition-all resize-y"
+                  />
+                </div>
+
+                <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <p className="text-xs text-[#6B705C] flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-[#6B705C] flex-shrink-0" />
+                    <span>Saves directly to incoming_leads collection</span>
+                  </p>
+
+                  <div className="flex items-center gap-3 w-full sm:w-auto">
+                    <button
+                      id="submitOrderBtn"
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-[#3F2E23] hover:bg-[#2D241E] active:scale-95 text-[#FFE8D6] font-bold text-sm px-7 py-3.5 rounded-xl shadow-md disabled:opacity-50 transition-all cursor-pointer"
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin text-[#CB997E]" />
+                          <span>Sending Request...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Send className="w-4 h-4 text-[#CB997E]" />
+                          <span>Send to The Metro's Diner</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+        </section>
+
+        {/* 7. Footer & Contact Section (Rich Natural Wood Background: var(--wood) #3F2E23) */}
         <section id="location" className="py-16 sm:py-20 bg-[#3F2E23] text-[#FFE8D6]">
           <div className="max-w-6xl mx-auto px-4 sm:px-6">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-start">
@@ -804,6 +1034,7 @@ export default function App() {
               <div className="flex items-center gap-6">
                 <a href="#menu" className="hover:text-white transition-colors">Menu</a>
                 <a href="#reviews" className="hover:text-white transition-colors">Reviews</a>
+                <a href="#contact" className="hover:text-white transition-colors">Pre-Order</a>
                 <a href="#location" className="hover:text-white transition-colors">Find Us</a>
                 <a
                   href={getWhatsAppOrderUrl()}
