@@ -1,0 +1,23 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #FDFBF7;
+  --sage: #6B705C;
+  --wood: #3F2E23;
+  --terracotta: #CB997E;
+  --cream: #FFE8D6;
+  --text: #2D241E;
+  --border-natural: #E5E1DA;
+}
+
+@theme {
+  --color-natural-bg: #FDFBF7;
+  --color-natural-sage: #6B705C;
+  --color-natural-wood: #3F2E23;
+  --color-natural-terracotta: #CB997E;
+  --color-natural-cream: #FFE8D6;
+  --color-natural-text: #2D241E;
+  --color-natural-border: #E5E1DA;
+  --font-serif: "Playfair Display", Georgia, serif;
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+}

@@ -1,0 +1,7 @@
+{
+  "name": "The Metro's Diner",
+  "description": "Mobile-responsive website mockup for The Metro's Diner in Ilorin, featuring burgers, loaded fries, WhatsApp ordering, and customer reviews.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
