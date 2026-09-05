@@ -24,8 +24,12 @@ import {
   ShieldCheck,
   Undo2,
   AlertTriangle,
+  Upload,
+  Copy,
+  CheckCircle2,
 } from 'lucide-react';
 import { MenuItem, SiteConfig } from '../types';
+import { ImageHubTab, SavedImageItem } from './ImageHubTab';
 
 interface AdminModalProps {
   isOpen: boolean;
@@ -62,7 +66,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   onSaveSiteConfig,
   onResetDefaults,
 }) => {
-  const [activeTab, setActiveTab] = useState<'menu' | 'site' | 'popup' | 'security'>('menu');
+  const [activeTab, setActiveTab] = useState<'menu' | 'images' | 'site' | 'popup' | 'security'>('menu');
   const [items, setItems] = useState<MenuItem[]>(menuItems);
   const [config, setConfig] = useState<SiteConfig>(siteConfig);
   const [adminPasswordInput, setAdminPasswordInput] = useState(siteConfig.adminPassword || 'admin');
@@ -71,6 +75,37 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const [passwordToast, setPasswordToast] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [selectedPresetTargetId, setSelectedPresetTargetId] = useState<string | null>(null);
+
+  // Saved Images Library state (persisted in localStorage)
+  const [savedImages, setSavedImages] = useState<SavedImageItem[]>(() => {
+    try {
+      const stored = localStorage.getItem('metros_diner_saved_image_library');
+      if (stored) return JSON.parse(stored);
+    } catch (e) {
+      console.error(e);
+    }
+    return [];
+  });
+
+  const handleAddImageToLibrary = (item: SavedImageItem) => {
+    const updated = [item, ...savedImages.filter((img) => img.url !== item.url)];
+    setSavedImages(updated);
+    try {
+      localStorage.setItem('metros_diner_saved_image_library', JSON.stringify(updated));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleDeleteImageFromLibrary = (id: string) => {
+    const updated = savedImages.filter((img) => img.id !== id);
+    setSavedImages(updated);
+    try {
+      localStorage.setItem('metros_diner_saved_image_library', JSON.stringify(updated));
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   // New Dish Form State
   const [showAddForm, setShowAddForm] = useState(false);
@@ -235,6 +270,176 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     }
   };
 
+  const handleApplyImageToDish = (dishId: string, imageUrl: string) => {
+    const updated = items.map((item) =>
+      item.id === dishId ? { ...item, image: imageUrl } : item
+    );
+    setItems(updated);
+    onSaveMenuItems(updated);
+    const dish = items.find((d) => d.id === dishId);
+    setActionToast({ message: `Photo updated on "${dish?.name || 'dish'}"!` });
+    setTimeout(() => setActionToast(null), 4000);
+  };
+
+  const handleApplyImageToHero = (imageUrl: string) => {
+    const updated = { ...config, heroMainImage: imageUrl };
+    setConfig(updated);
+    onSaveSiteConfig(updated);
+    setActionToast({ message: `Hero main banner photo updated!` });
+    setTimeout(() => setActionToast(null), 4000);
+  };
+
+  const handleCreateDishWithImage = (imageUrl: string, label?: string) => {
+    const newItem: MenuItem = {
+      id: `food-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      name: label && label !== 'Custom Uploaded Photo' ? label : 'New Delicious Dish',
+      category: 'burgers',
+      price: '₦4,500',
+      rawPrice: 4500,
+      description: 'Freshly prepared diner specialty with authentic house seasoning.',
+      image: imageUrl,
+      popular: false,
+      spicy: false,
+    };
+    const updated = [newItem, ...items];
+    setItems(updated);
+    onSaveMenuItems(updated);
+    setActionToast({ message: `"${newItem.name}" added to diner menu with your photo!` });
+    setTimeout(() => setActionToast(null), 4000);
+  };
+
+  const handlePasteLinkToDish = async (dishId: string) => {
+    try {
+      if (navigator?.clipboard?.readText) {
+        const text = await navigator.clipboard.readText();
+        if (text && text.trim()) {
+          handleUpdateItem(dishId, 'image', text.trim());
+          setActionToast({ message: 'Image link pasted!' });
+          setTimeout(() => setActionToast(null), 3000);
+          return;
+        }
+      }
+    } catch {
+      // fallback if clipboard read is restricted
+    }
+    const link = window.prompt('Paste image link for this dish:');
+    if (link && link.trim()) {
+      handleUpdateItem(dishId, 'image', link.trim());
+      setActionToast({ message: 'Image link pasted!' });
+      setTimeout(() => setActionToast(null), 3000);
+    }
+  };
+
+  const handleDirectFileUploadForDish = (dishId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      if (dataUrl) {
+        handleUpdateItem(dishId, 'image', dataUrl);
+        handleAddImageToLibrary({
+          id: `img-${Date.now()}`,
+          label: file.name.replace(/\.[^/.]+$/, ''),
+          url: dataUrl,
+          isCustom: true,
+        });
+        setActionToast({ message: 'Photo uploaded and applied to dish!' });
+        setTimeout(() => setActionToast(null), 3500);
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const handlePasteLinkToNewDish = async () => {
+    try {
+      if (navigator?.clipboard?.readText) {
+        const text = await navigator.clipboard.readText();
+        if (text && text.trim()) {
+          setNewDishImage(text.trim());
+          setActionToast({ message: 'Image link pasted for new dish!' });
+          setTimeout(() => setActionToast(null), 3000);
+          return;
+        }
+      }
+    } catch {
+      // fallback
+    }
+    const link = window.prompt('Paste image link:');
+    if (link && link.trim()) {
+      setNewDishImage(link.trim());
+      setActionToast({ message: 'Image link pasted for new dish!' });
+      setTimeout(() => setActionToast(null), 3000);
+    }
+  };
+
+  const handleDirectFileUploadForNewDish = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      if (dataUrl) {
+        setNewDishImage(dataUrl);
+        handleAddImageToLibrary({
+          id: `img-${Date.now()}`,
+          label: file.name.replace(/\.[^/.]+$/, ''),
+          url: dataUrl,
+          isCustom: true,
+        });
+        setActionToast({ message: 'Photo uploaded for new dish!' });
+        setTimeout(() => setActionToast(null), 3000);
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const handlePasteLinkToHero = async () => {
+    try {
+      if (navigator?.clipboard?.readText) {
+        const text = await navigator.clipboard.readText();
+        if (text && text.trim()) {
+          setConfig({ ...config, heroMainImage: text.trim() });
+          setActionToast({ message: 'Image link pasted for Hero Banner!' });
+          setTimeout(() => setActionToast(null), 3000);
+          return;
+        }
+      }
+    } catch {
+      // fallback
+    }
+    const link = window.prompt('Paste image link for Hero Main Banner:');
+    if (link && link.trim()) {
+      setConfig({ ...config, heroMainImage: link.trim() });
+      setActionToast({ message: 'Image link pasted for Hero Banner!' });
+      setTimeout(() => setActionToast(null), 3000);
+    }
+  };
+
+  const handleDirectFileUploadForHero = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      if (dataUrl) {
+        setConfig({ ...config, heroMainImage: dataUrl });
+        handleAddImageToLibrary({
+          id: `img-${Date.now()}`,
+          label: 'Hero Banner: ' + file.name.replace(/\.[^/.]+$/, ''),
+          url: dataUrl,
+          isCustom: true,
+        });
+        setActionToast({ message: 'Photo uploaded and applied to Hero Banner!' });
+        setTimeout(() => setActionToast(null), 3500);
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -325,6 +530,19 @@ export const AdminModal: React.FC<AdminModalProps> = ({
               </button>
 
               <button
+                id="admin-images-hub-tab-btn"
+                onClick={() => setActiveTab('images')}
+                className={`py-3 px-4 font-bold text-xs sm:text-sm flex items-center gap-2 border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
+                  activeTab === 'images'
+                    ? 'border-[#CB997E] text-[#3F2E23]'
+                    : 'border-transparent text-[#6B705C] hover:text-[#3F2E23]'
+                }`}
+              >
+                <ImageIcon className="w-4 h-4 text-[#CB997E]" />
+                <span>Image Link & Upload Hub</span>
+              </button>
+
+              <button
                 onClick={() => setActiveTab('site')}
                 className={`py-3 px-4 font-bold text-xs sm:text-sm flex items-center gap-2 border-b-2 transition-colors cursor-pointer whitespace-nowrap ${
                   activeTab === 'site'
@@ -399,6 +617,31 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                 </div>
               </div>
 
+              {/* Quick Image Hub Shortcut Banner */}
+              <div className="bg-white border border-[#E5E1DA] rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-[#FFE8D6] text-[#CB997E] flex items-center justify-center shrink-0">
+                    <ImageIcon className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-[#3F2E23]">
+                      Have an image link copied from Google, Pinterest, or any website?
+                    </h4>
+                    <p className="text-[11px] text-[#6B705C]">
+                      You can paste links directly into each food card below, or use the dedicated <strong>Image Link & Upload Hub</strong> to preview, upload from phone/PC, and save them.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('images')}
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-[#CB997E] hover:text-[#3F2E23] bg-[#FFE8D6]/60 hover:bg-[#FFE8D6] px-3.5 py-2 rounded-xl transition-colors shrink-0 cursor-pointer self-start sm:self-center"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Open Image Link Hub</span>
+                </button>
+              </div>
+
               {/* Dedicated Add New Dish Form */}
               <AnimatePresence>
                 {showAddForm && (
@@ -449,42 +692,106 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                           </div>
 
                           <div>
-                            <label className="block text-[11px] font-bold uppercase tracking-wider text-[#6B705C] mb-1">
-                              Image URL
-                            </label>
+                            <div className="flex items-center justify-between mb-1">
+                              <label className="block text-[11px] font-bold uppercase tracking-wider text-[#6B705C]">
+                                Image Link
+                              </label>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={handlePasteLinkToNewDish}
+                                  className="text-[10px] font-bold text-[#CB997E] hover:text-[#3F2E23] flex items-center gap-0.5 cursor-pointer"
+                                  title="Paste link from clipboard"
+                                >
+                                  <Copy className="w-3 h-3" />
+                                  <span>Paste</span>
+                                </button>
+                                <label className="text-[10px] font-bold text-[#6B705C] hover:text-[#3F2E23] flex items-center gap-0.5 cursor-pointer" title="Upload image from computer/phone">
+                                  <Upload className="w-3 h-3" />
+                                  <span>Upload</span>
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={handleDirectFileUploadForNewDish}
+                                  />
+                                </label>
+                              </div>
+                            </div>
                             <input
                               type="url"
                               value={newDishImage}
                               onChange={(e) => setNewDishImage(e.target.value)}
-                              placeholder="https://..."
+                              placeholder="Paste link e.g. https://images.unsplash.com/..."
                               className="w-full px-3 py-2 text-xs bg-[#FDFBF7] border border-[#E5E1DA] rounded-lg focus:outline-none focus:border-[#CB997E]"
                             />
                           </div>
 
-                          <button
-                            type="button"
-                            onClick={() => setShowNewPresetPicker(!showNewPresetPicker)}
-                            className="text-[11px] font-bold text-[#CB997E] hover:text-[#3F2E23] flex items-center gap-1 cursor-pointer"
-                          >
-                            <ImageIcon className="w-3.5 h-3.5" />
-                            <span>{showNewPresetPicker ? 'Hide Image Presets' : 'Choose Preset Diner Photo'}</span>
-                          </button>
+                          <div className="pt-1 flex items-center justify-between">
+                            <button
+                              type="button"
+                              onClick={() => setShowNewPresetPicker(!showNewPresetPicker)}
+                              className="text-[11px] font-bold text-[#CB997E] hover:text-[#3F2E23] flex items-center gap-1 cursor-pointer"
+                            >
+                              <ImageIcon className="w-3.5 h-3.5" />
+                              <span>{showNewPresetPicker ? 'Hide Photo Presets' : 'Choose Diner Photo'}</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setActiveTab('images')}
+                              className="text-[10px] text-[#6B705C] hover:text-[#3F2E23] hover:underline cursor-pointer"
+                            >
+                              Image Hub →
+                            </button>
+                          </div>
 
                           {showNewPresetPicker && (
-                            <div className="p-2 bg-[#FFE8D6]/40 rounded-xl border border-[#E5E1DA] grid grid-cols-2 gap-1.5 max-h-36 overflow-y-auto">
-                              {FOOD_IMAGE_PRESETS.map((preset) => (
-                                <button
-                                  key={preset.label}
-                                  type="button"
-                                  onClick={() => {
-                                    setNewDishImage(preset.url);
-                                    setShowNewPresetPicker(false);
-                                  }}
-                                  className="text-[10px] text-left p-1.5 bg-white hover:bg-[#FFE8D6] rounded-md border border-[#E5E1DA] truncate cursor-pointer transition-colors"
-                                >
-                                  {preset.label}
-                                </button>
-                              ))}
+                            <div className="p-2 bg-[#FFE8D6]/40 rounded-xl border border-[#E5E1DA] max-h-48 overflow-y-auto space-y-2">
+                              {savedImages.length > 0 && (
+                                <div>
+                                  <span className="text-[9px] font-bold uppercase tracking-wider text-[#6B705C] block px-1 mb-1">
+                                    Your Uploaded & Saved Images
+                                  </span>
+                                  <div className="grid grid-cols-2 gap-1.5 mb-2">
+                                    {savedImages.map((saved) => (
+                                      <button
+                                        key={saved.id}
+                                        type="button"
+                                        onClick={() => {
+                                          setNewDishImage(saved.url);
+                                          setShowNewPresetPicker(false);
+                                        }}
+                                        className="text-[10px] text-left p-1.5 bg-white hover:bg-[#FFE8D6] rounded-md border border-[#CB997E]/40 truncate cursor-pointer transition-colors flex items-center gap-1.5"
+                                      >
+                                        <img src={saved.url} alt="" className="w-4 h-4 rounded-xs object-cover shrink-0" />
+                                        <span className="truncate">{saved.label}</span>
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              <div>
+                                <span className="text-[9px] font-bold uppercase tracking-wider text-[#6B705C] block px-1 mb-1">
+                                  Diner Stock Photos
+                                </span>
+                                <div className="grid grid-cols-2 gap-1.5">
+                                  {FOOD_IMAGE_PRESETS.map((preset) => (
+                                    <button
+                                      key={preset.label}
+                                      type="button"
+                                      onClick={() => {
+                                        setNewDishImage(preset.url);
+                                        setShowNewPresetPicker(false);
+                                      }}
+                                      className="text-[10px] text-left p-1.5 bg-white hover:bg-[#FFE8D6] rounded-md border border-[#E5E1DA] truncate cursor-pointer transition-colors"
+                                    >
+                                      {preset.label}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
                             </div>
                           )}
                         </div>
@@ -634,20 +941,43 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                         </div>
 
                         <div>
-                          <label className="block text-[11px] font-bold uppercase tracking-wider text-[#6B705C] mb-1">
-                            Food Image URL
-                          </label>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="block text-[11px] font-bold uppercase tracking-wider text-[#6B705C]">
+                              Food Image URL
+                            </label>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handlePasteLinkToDish(item.id)}
+                                className="text-[10px] font-bold text-[#CB997E] hover:text-[#3F2E23] flex items-center gap-0.5 cursor-pointer"
+                                title="Paste link from clipboard"
+                              >
+                                <Copy className="w-3 h-3" />
+                                <span>Paste</span>
+                              </button>
+                              <label className="text-[10px] font-bold text-[#6B705C] hover:text-[#3F2E23] flex items-center gap-0.5 cursor-pointer" title="Upload image from computer/phone">
+                                <Upload className="w-3 h-3" />
+                                <span>Upload</span>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={(e) => handleDirectFileUploadForDish(item.id, e)}
+                                />
+                              </label>
+                            </div>
+                          </div>
                           <input
                             type="url"
                             value={item.image}
                             onChange={(e) => handleUpdateItem(item.id, 'image', e.target.value)}
-                            placeholder="https://images.unsplash.com/..."
+                            placeholder="Paste image link e.g. https://images.unsplash.com/..."
                             className="w-full px-3 py-2 text-xs bg-[#FDFBF7] border border-[#E5E1DA] rounded-lg focus:outline-none focus:border-[#CB997E]"
                           />
                         </div>
 
-                        {/* Quick pick from diner presets */}
-                        <div className="pt-1">
+                        {/* Quick pick from diner presets & user library */}
+                        <div className="pt-1 flex items-center justify-between">
                           <button
                             type="button"
                             onClick={() =>
@@ -660,26 +990,62 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                             <ImageIcon className="w-3.5 h-3.5" />
                             <span>
                               {selectedPresetTargetId === item.id
-                                ? 'Hide Quick Presets'
-                                : 'Choose From Preset Food Images'}
+                                ? 'Hide Presets'
+                                : 'Presets & Library'}
                             </span>
                           </button>
 
-                          {selectedPresetTargetId === item.id && (
-                            <div className="mt-2 p-2 bg-[#FFE8D6]/40 rounded-xl border border-[#E5E1DA] grid grid-cols-2 gap-1.5 max-h-40 overflow-y-auto">
-                              {FOOD_IMAGE_PRESETS.map((preset) => (
-                                <button
-                                  key={preset.label}
-                                  type="button"
-                                  onClick={() => handleApplyPresetImage(preset.url)}
-                                  className="text-[10px] text-left p-1.5 bg-white hover:bg-[#FFE8D6] rounded-md border border-[#E5E1DA] truncate cursor-pointer transition-colors"
-                                >
-                                  {preset.label}
-                                </button>
-                              ))}
-                            </div>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() => setActiveTab('images')}
+                            className="text-[10px] text-[#6B705C] hover:text-[#3F2E23] hover:underline cursor-pointer"
+                          >
+                            Image Hub →
+                          </button>
                         </div>
+
+                        {selectedPresetTargetId === item.id && (
+                          <div className="mt-2 p-2 bg-[#FFE8D6]/40 rounded-xl border border-[#E5E1DA] max-h-48 overflow-y-auto space-y-2">
+                            {savedImages.length > 0 && (
+                              <div>
+                                <span className="text-[9px] font-bold uppercase tracking-wider text-[#6B705C] block px-1 mb-1">
+                                  Your Uploaded & Saved Images
+                                </span>
+                                <div className="grid grid-cols-2 gap-1.5 mb-2">
+                                  {savedImages.map((saved) => (
+                                    <button
+                                      key={saved.id}
+                                      type="button"
+                                      onClick={() => handleApplyPresetImage(saved.url)}
+                                      className="text-[10px] text-left p-1.5 bg-white hover:bg-[#FFE8D6] rounded-md border border-[#CB997E]/40 truncate cursor-pointer transition-colors flex items-center gap-1.5"
+                                    >
+                                      <img src={saved.url} alt="" className="w-4 h-4 rounded-xs object-cover shrink-0" />
+                                      <span className="truncate">{saved.label}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            <div>
+                              <span className="text-[9px] font-bold uppercase tracking-wider text-[#6B705C] block px-1 mb-1">
+                                Diner Stock Photos
+                              </span>
+                              <div className="grid grid-cols-2 gap-1.5">
+                                {FOOD_IMAGE_PRESETS.map((preset) => (
+                                  <button
+                                    key={preset.label}
+                                    type="button"
+                                    onClick={() => handleApplyPresetImage(preset.url)}
+                                    className="text-[10px] text-left p-1.5 bg-white hover:bg-[#FFE8D6] rounded-md border border-[#E5E1DA] truncate cursor-pointer transition-colors"
+                                  >
+                                    {preset.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       {/* Right: Food Name, Price, Category, Description */}
@@ -821,6 +1187,20 @@ export const AdminModal: React.FC<AdminModalProps> = ({
             </div>
           )}
 
+          {/* TAB: IMAGE LINK & UPLOAD HUB */}
+          {activeTab === 'images' && (
+            <ImageHubTab
+              menuItems={items}
+              onApplyImageToDish={handleApplyImageToDish}
+              onApplyImageToHero={handleApplyImageToHero}
+              onCreateDishWithImage={handleCreateDishWithImage}
+              savedImages={savedImages}
+              onAddImageToLibrary={handleAddImageToLibrary}
+              onDeleteImageFromLibrary={handleDeleteImageFromLibrary}
+              presets={FOOD_IMAGE_PRESETS}
+            />
+          )}
+
           {/* TAB 2: GENERAL WEBSITE CONTENT */}
           {activeTab === 'site' && (
             <div className="bg-white p-6 rounded-2xl border border-[#E5E1DA] space-y-6">
@@ -942,42 +1322,123 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                   />
                 </div>
 
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-bold uppercase text-[#3F2E23] mb-1">
-                    Hero Main Showcase Image URL
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="url"
-                      value={config.heroMainImage}
-                      onChange={(e) => setConfig({ ...config, heroMainImage: e.target.value })}
-                      className="flex-1 px-3 py-2 text-xs bg-[#FDFBF7] border border-[#E5E1DA] rounded-lg focus:outline-none focus:border-[#CB997E]"
-                    />
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setSelectedPresetTargetId(
-                          selectedPresetTargetId === 'hero' ? null : 'hero'
-                        )
-                      }
-                      className="px-3 py-2 bg-[#FFE8D6] text-[#3F2E23] text-xs font-bold rounded-lg border border-[#E5E1DA] hover:bg-[#CB997E] hover:text-white transition-colors cursor-pointer"
-                    >
-                      Presets
-                    </button>
+                <div className="sm:col-span-2 space-y-3 pt-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold uppercase text-[#3F2E23]">
+                      Hero Main Showcase Banner Photo
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handlePasteLinkToHero}
+                        className="text-xs font-bold text-[#CB997E] hover:text-[#3F2E23] flex items-center gap-1 cursor-pointer"
+                        title="Paste link from clipboard"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Paste Link</span>
+                      </button>
+                      <label className="text-xs font-bold text-[#6B705C] hover:text-[#3F2E23] flex items-center gap-1 cursor-pointer" title="Upload from computer or phone">
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>Upload Photo</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleDirectFileUploadForHero}
+                        />
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-4 items-start">
+                    <div className="relative w-full sm:w-48 aspect-16/10 rounded-xl overflow-hidden bg-[#FFE8D6]/40 border border-[#E5E1DA] shrink-0">
+                      <img
+                        src={config.heroMainImage}
+                        alt="Hero Banner Preview"
+                        referrerPolicy="no-referrer"
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = FOOD_IMAGE_PRESETS[0].url;
+                        }}
+                      />
+                      <span className="absolute bottom-1.5 left-1.5 bg-[#3F2E23]/80 text-[#FFE8D6] text-[9px] font-bold px-1.5 py-0.5 rounded-md">
+                        Banner Preview
+                      </span>
+                    </div>
+
+                    <div className="flex-1 w-full space-y-2">
+                      <input
+                        type="url"
+                        value={config.heroMainImage}
+                        onChange={(e) => setConfig({ ...config, heroMainImage: e.target.value })}
+                        placeholder="Paste image link e.g. https://..."
+                        className="w-full px-3 py-2 text-xs bg-[#FDFBF7] border border-[#E5E1DA] rounded-lg focus:outline-none focus:border-[#CB997E]"
+                      />
+                      <div className="flex items-center justify-between gap-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setSelectedPresetTargetId(
+                              selectedPresetTargetId === 'hero' ? null : 'hero'
+                            )
+                          }
+                          className="px-3 py-1.5 bg-[#FFE8D6] text-[#3F2E23] text-xs font-bold rounded-lg border border-[#E5E1DA] hover:bg-[#CB997E] hover:text-white transition-colors cursor-pointer inline-flex items-center gap-1.5"
+                        >
+                          <ImageIcon className="w-3.5 h-3.5" />
+                          <span>{selectedPresetTargetId === 'hero' ? 'Hide Presets' : 'Choose From Library & Presets'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab('images')}
+                          className="text-xs font-bold text-[#CB997E] hover:underline cursor-pointer"
+                        >
+                          Image Hub →
+                        </button>
+                      </div>
+                    </div>
                   </div>
 
                   {selectedPresetTargetId === 'hero' && (
-                    <div className="mt-2 p-2 bg-[#FFE8D6]/40 rounded-xl border border-[#E5E1DA] grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      {FOOD_IMAGE_PRESETS.map((preset) => (
-                        <button
-                          key={preset.label}
-                          type="button"
-                          onClick={() => handleApplyPresetImage(preset.url)}
-                          className="text-[11px] p-2 bg-white hover:bg-[#FFE8D6] rounded-lg border border-[#E5E1DA] truncate cursor-pointer transition-colors text-left"
-                        >
-                          {preset.label}
-                        </button>
-                      ))}
+                    <div className="mt-2 p-3 bg-[#FFE8D6]/40 rounded-xl border border-[#E5E1DA] max-h-52 overflow-y-auto space-y-2">
+                      {savedImages.length > 0 && (
+                        <div>
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-[#6B705C] block mb-1">
+                            Your Uploaded & Saved Images
+                          </span>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-2">
+                            {savedImages.map((saved) => (
+                              <button
+                                key={saved.id}
+                                type="button"
+                                onClick={() => handleApplyPresetImage(saved.url)}
+                                className="text-[10px] p-2 bg-white hover:bg-[#FFE8D6] rounded-lg border border-[#CB997E]/50 truncate cursor-pointer transition-colors text-left flex items-center gap-1.5"
+                              >
+                                <img src={saved.url} alt="" className="w-4 h-4 rounded-xs object-cover shrink-0" />
+                                <span className="truncate">{saved.label}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <div>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#6B705C] block mb-1">
+                          Diner Stock Photos
+                        </span>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                          {FOOD_IMAGE_PRESETS.map((preset) => (
+                            <button
+                              key={preset.label}
+                              type="button"
+                              onClick={() => handleApplyPresetImage(preset.url)}
+                              className="text-[11px] p-2 bg-white hover:bg-[#FFE8D6] rounded-lg border border-[#E5E1DA] truncate cursor-pointer transition-colors text-left"
+                            >
+                              {preset.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
