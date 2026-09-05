@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   Star,
   MapPin,
@@ -14,136 +15,17 @@ import {
   Send,
   AlertCircle,
   Loader2,
+  Sliders,
+  Settings,
+  X,
+  Lock,
 } from 'lucide-react';
 import { db, collection, addDoc, serverTimestamp, testConnection } from './lib/firebase';
-
-interface MenuItem {
-  id: string;
-  name: string;
-  category: 'burgers' | 'fries' | 'sides';
-  price: string;
-  rawPrice: number;
-  description: string;
-  image: string;
-  popular?: boolean;
-  spicy?: boolean;
-}
-
-const MENU_ITEMS: MenuItem[] = [
-  {
-    id: 'classic-cheeseburger',
-    name: "Classic Cheeseburger",
-    category: 'burgers',
-    price: "₦4,500",
-    rawPrice: 4500,
-    description: "Juicy seared beef smash patty, melted aged cheddar, caramelized onions, house diner relish & crisp pickles on a toasted brioche bun.",
-    image: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=800&q=80",
-    popular: true,
-  },
-  {
-    id: 'loaded-fries',
-    name: "Metro Signature Loaded Fries",
-    category: 'fries',
-    price: "₦3,800",
-    rawPrice: 3800,
-    description: "Crispy crinkle-cut fries smothered in warm velvety cheese sauce, seasoned minced beef, sliced jalapeños & fresh scallions.",
-    image: "https://images.unsplash.com/photo-1585109649139-366815a0d713?auto=format&fit=crop&w=800&q=80",
-    popular: true,
-    spicy: true,
-  },
-  {
-    id: 'crispy-chicken-burger',
-    name: "Crispy Zesty Chicken Burger",
-    category: 'burgers',
-    price: "₦4,800",
-    rawPrice: 4800,
-    description: "Golden buttermilk fried chicken fillet with crunchy seasoned coating, crunchy shredded lettuce, and tangy garlic-herb aioli.",
-    image: "https://images.unsplash.com/photo-1625813506062-0aeb1d7a094b?auto=format&fit=crop&w=800&q=80",
-    popular: true,
-  },
-  {
-    id: 'golden-french-fries',
-    name: "Golden Crisp French Fries",
-    category: 'fries',
-    price: "₦2,200",
-    rawPrice: 2200,
-    description: "Skin-on potatoes double-fried to golden perfection, dusted with our signature spice blend. Served with house ketchup dip.",
-    image: "https://images.unsplash.com/photo-1576107232684-1279f3908594?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    id: 'double-smash-bacon',
-    name: "Double Smash Bacon Burger",
-    category: 'burgers',
-    price: "₦5,800",
-    rawPrice: 5800,
-    description: "Twin 100% beef smash patties, double cheddar slices, crispy beef bacon strips, smoky hickory sauce on buttered brioche.",
-    image: "https://images.unsplash.com/photo-1553979459-d2229ba7433b?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    id: 'bbq-chicken-wings',
-    name: "Glazed BBQ Chicken Wings (6 pcs)",
-    category: 'sides',
-    price: "₦4,200",
-    rawPrice: 4200,
-    description: "Crispy fried wings tossed in our sweet and smoky house barbecue glaze, served with cool creamy garlic ranch sauce.",
-    image: "https://images.unsplash.com/photo-1567620832903-9fc6debc209f?auto=format&fit=crop&w=800&q=80",
-    spicy: true,
-  },
-  {
-    id: 'crispy-tenders',
-    name: "Crispy Chicken Tenders (4 pcs)",
-    category: 'sides',
-    price: "₦3,500",
-    rawPrice: 3500,
-    description: "Tender boneless chicken strips fried to a deep golden crunch, paired with honey mustard and garlic mayo dips.",
-    image: "https://images.unsplash.com/photo-1562967914-608f82629710?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    id: 'creamy-milkshake',
-    name: "Hand-Spun Diner Milkshake",
-    category: 'sides',
-    price: "₦3,000",
-    rawPrice: 3000,
-    description: "Thick, indulgent ice cream shake blended fresh to order. Choose from Rich Chocolate, Creamy Vanilla, or Fresh Strawberry.",
-    image: "https://images.unsplash.com/photo-1572490122747-3968b75cc699?auto=format&fit=crop&w=800&q=80",
-  },
-];
-
-const REVIEWS = [
-  {
-    id: 'review-1',
-    author: "Richard Ogbedo",
-    tag: "Local Guide",
-    reviewCount: "42 reviews • 85 photos",
-    rating: 5,
-    date: "A few weeks ago",
-    text: "The food is nice. You will always go back for more",
-    highlight: "Favorite burger spot in town",
-    avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80",
-  },
-  {
-    id: 'review-2',
-    author: "Balogun Ridwan",
-    tag: "Local Guide",
-    reviewCount: "29 reviews • 34 photos",
-    rating: 5,
-    date: "1 month ago",
-    text: "Delicious and affordable...",
-    highlight: "Unbeatable taste & portion size",
-    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=120&q=80",
-  },
-  {
-    id: 'review-3',
-    author: "Aminat Olalekan",
-    tag: "Verified Diner",
-    reviewCount: "14 reviews",
-    rating: 5,
-    date: "2 months ago",
-    text: "Best loaded fries in Ilorin without contest! The cheese sauce and minced meat blend is heavenly. Ordering via WhatsApp was super fast.",
-    highlight: "Super fast WhatsApp response",
-    avatar: "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=120&q=80",
-  },
-];
+import { MenuItem, SiteConfig, ReviewItem } from './types';
+import { DEFAULT_MENU_ITEMS, DEFAULT_REVIEWS, DEFAULT_SITE_CONFIG } from './data/defaultContent';
+import { WelcomePopup } from './components/WelcomePopup';
+import { AdminModal } from './components/AdminModal';
+import { AdminLoginModal } from './components/AdminLoginModal';
 
 export default function App() {
   const [activeCategory, setActiveCategory] = useState<'all' | 'burgers' | 'fries' | 'sides'>('all');
@@ -154,22 +36,137 @@ export default function App() {
   const [submissionStatus, setSubmissionStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
 
+  // Dynamic Site Config & Menu Items with LocalStorage Persistence
+  const [menuItems, setMenuItems] = useState<MenuItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('metros_diner_menu');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.error("Error reading saved menu:", e);
+    }
+    return DEFAULT_MENU_ITEMS;
+  });
+
+  const [siteConfig, setSiteConfig] = useState<SiteConfig>(() => {
+    try {
+      const saved = localStorage.getItem('metros_diner_site_config');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.restaurantName) {
+          const config = { ...DEFAULT_SITE_CONFIG, ...parsed };
+          // Automatically update old phone numbers if present from previous sessions
+          if (config.phone?.includes('6192594') || config.phone?.includes('0703')) {
+            config.phone = "0913 477 9028";
+          }
+          if (config.whatsappNumber?.includes('6192594') || config.whatsappNumber?.includes('0703')) {
+            config.whatsappNumber = "2349134779028";
+          }
+          return config;
+        }
+      }
+    } catch (e) {
+      console.error("Error reading saved site config:", e);
+    }
+    return DEFAULT_SITE_CONFIG;
+  });
+
+  const [reviews] = useState<ReviewItem[]>(DEFAULT_REVIEWS);
+
+  // Welcome Pop-up state (shown when visiting homepage)
+  const [showWelcomePopup, setShowWelcomePopup] = useState(() => {
+    return siteConfig.welcomePopup?.enabled ?? true;
+  });
+
+  // Admin Control Panel & Authentication states
+  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('metros_admin_logged_in') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [showAdminLoginModal, setShowAdminLoginModal] = useState(false);
+  const [showAdminModal, setShowAdminModal] = useState(false);
+
+  const handleOpenAdmin = () => {
+    if (isAdminLoggedIn) {
+      setShowAdminModal(true);
+    } else {
+      setShowAdminLoginModal(true);
+    }
+  };
+
+  const handleAdminLoginSuccess = () => {
+    setIsAdminLoggedIn(true);
+    try {
+      localStorage.setItem('metros_admin_logged_in', 'true');
+    } catch (e) {
+      console.error("Failed to store admin login status", e);
+    }
+    setShowAdminLoginModal(false);
+    setShowAdminModal(true);
+  };
+
+  const handleAdminLogout = () => {
+    setIsAdminLoggedIn(false);
+    try {
+      localStorage.removeItem('metros_admin_logged_in');
+    } catch (e) {
+      console.error("Failed to remove admin login status", e);
+    }
+  };
+
   useEffect(() => {
     testConnection();
   }, []);
 
-  const filteredItems = activeCategory === 'all'
-    ? MENU_ITEMS
-    : MENU_ITEMS.filter((item) => item.category === activeCategory);
-
-  const WHATSAPP_BASE = "https://wa.me/2347036192594";
-  const getWhatsAppOrderUrl = (itemName?: string, price?: string) => {
-    if (itemName && price) {
-      const message = encodeURIComponent(`Hello The Metro's Diner! I would like to order: ${itemName} (${price}). Please confirm availability and delivery/pickup time.`);
-      return `${WHATSAPP_BASE}?text=${message}`;
+  const handleSaveMenuItems = (newItems: MenuItem[]) => {
+    setMenuItems(newItems);
+    try {
+      localStorage.setItem('metros_diner_menu', JSON.stringify(newItems));
+    } catch (e) {
+      console.error("Failed to save menu to localStorage", e);
     }
-    const generalMsg = encodeURIComponent("Hello The Metro's Diner! I would like to view the daily specials and place an order.");
-    return `${WHATSAPP_BASE}?text=${generalMsg}`;
+  };
+
+  const handleSaveSiteConfig = (newConfig: SiteConfig) => {
+    setSiteConfig(newConfig);
+    try {
+      localStorage.setItem('metros_diner_site_config', JSON.stringify(newConfig));
+    } catch (e) {
+      console.error("Failed to save site config to localStorage", e);
+    }
+  };
+
+  const handleResetDefaults = () => {
+    localStorage.removeItem('metros_diner_menu');
+    localStorage.removeItem('metros_diner_site_config');
+    setMenuItems(DEFAULT_MENU_ITEMS);
+    setSiteConfig(DEFAULT_SITE_CONFIG);
+  };
+
+  const filteredItems = activeCategory === 'all'
+    ? menuItems
+    : menuItems.filter((item) => item.category === activeCategory);
+
+  const getWhatsAppOrderUrl = (itemName?: string, price?: string) => {
+    let cleanNumber = (siteConfig.whatsappNumber || "2349134779028").replace(/[^0-9]/g, '');
+    if (cleanNumber.startsWith('0')) {
+      cleanNumber = '234' + cleanNumber.slice(1);
+    }
+    if (!cleanNumber) {
+      cleanNumber = "2349134779028";
+    }
+    const base = `https://wa.me/${cleanNumber}`;
+    if (itemName && price) {
+      const message = encodeURIComponent(`Hello ${siteConfig.restaurantName}! I would like to order: ${itemName} (${price}). Please confirm availability and delivery/pickup time.`);
+      return `${base}?text=${message}`;
+    }
+    const generalMsg = encodeURIComponent(`Hello ${siteConfig.restaurantName}! I would like to view the daily specials and place an order.`);
+    return `${base}?text=${generalMsg}`;
   };
 
   const handleShare = () => {
@@ -217,21 +214,10 @@ export default function App() {
       setOrderNotes('');
       const formEl = document.getElementById('contactForm') as HTMLFormElement | null;
       if (formEl) formEl.reset();
-
-      try {
-        window.alert("Awesome! Your request has been sent straight to The Metro's Diner!");
-      } catch {
-        // Fallback silently if alert is restricted in iframe
-      }
     } catch (error) {
       console.error("Error adding document: ", error);
       setSubmissionStatus('error');
       setErrorMessage("Something went wrong. Please try placing your order via WhatsApp!");
-      try {
-        window.alert("Something went wrong. Please try placing your order via WhatsApp!");
-      } catch {
-        // Fallback silently if alert is restricted in iframe
-      }
     } finally {
       setIsSubmitting(false);
     }
@@ -241,22 +227,46 @@ export default function App() {
     <div className="min-h-screen bg-[#FDFBF7] text-[#2D241E] flex flex-col font-sans pb-24 md:pb-0 selection:bg-[#CB997E] selection:text-white">
       {/* Top Banner Alert / Status (Natural Wood with Sage & Terracotta Accents) */}
       <div className="bg-[#3F2E23] text-[#FFE8D6] text-xs sm:text-sm py-2.5 px-4 border-b border-[#523F33]">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="relative flex h-2.5 w-2.5">
+        <div className="max-w-6xl mx-auto flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 overflow-hidden">
+            <span className="relative flex h-2.5 w-2.5 flex-shrink-0">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#CB997E] opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#CB997E]"></span>
             </span>
-            <span className="font-semibold text-[#FFE8D6]">Open Daily until 11:00 PM</span>
-            <span className="hidden sm:inline text-[#E5E1DA]/80">• Station Road Service Station, Ilorin</span>
+            <span className="font-semibold text-[#FFE8D6] truncate">
+              {siteConfig.topBannerText || "Open Daily until 11:00 PM • Station Road Service Station, Ilorin"}
+            </span>
           </div>
-          <div className="flex items-center gap-3">
+
+          <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+            {/* Re-open Welcome Pop-up for buyers */}
+            <button
+              id="top-welcome-popup-trigger"
+              onClick={() => setShowWelcomePopup(true)}
+              className="text-[11px] font-bold bg-[#FFE8D6]/15 hover:bg-[#FFE8D6]/30 text-[#FFE8D6] px-2.5 py-1 rounded-full border border-white/20 transition-all flex items-center gap-1 cursor-pointer"
+              title="View Welcome Greetings"
+            >
+              <Sparkles className="w-3 h-3 text-[#CB997E]" />
+              <span className="hidden sm:inline">Welcome Specials</span>
+            </button>
+
+            {/* Admin Edit / Portal Trigger */}
+            <button
+              id="top-admin-trigger-btn"
+              onClick={handleOpenAdmin}
+              className="text-[11px] font-bold bg-[#CB997E] hover:bg-[#b8856c] text-[#2D241E] px-2.5 py-1 rounded-full transition-all flex items-center gap-1 shadow-xs cursor-pointer"
+              title={isAdminLoggedIn ? "Admin Panel (Logged In)" : "Admin Login - Restricted Access"}
+            >
+              {isAdminLoggedIn ? <Sliders className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
+              <span>{isAdminLoggedIn ? "Admin Panel" : "Admin Login"}</span>
+            </button>
+
             <a
-              href="tel:07036192594"
+              href={`tel:${siteConfig.phone.replace(/\s+/g, '')}`}
               className="hover:text-[#CB997E] transition-colors flex items-center gap-1.5 font-bold text-xs sm:text-sm"
             >
               <Phone className="w-3.5 h-3.5 text-[#CB997E]" />
-              <span>0703 619 2594</span>
+              <span className="hidden xs:inline">{siteConfig.phone}</span>
             </a>
           </div>
         </div>
@@ -272,10 +282,10 @@ export default function App() {
             </div>
             <div>
               <span className="font-serif italic font-extrabold text-xl sm:text-2xl tracking-tight text-[#3F2E23] block leading-tight">
-                The Metro's Diner
+                {siteConfig.restaurantName}
               </span>
               <span className="font-sans text-[10px] sm:text-[11px] font-bold uppercase tracking-widest text-[#6B705C] block mt-0.5">
-                Burgers & Crispy Fries • Ilorin
+                {siteConfig.tagline}
               </span>
             </div>
           </a>
@@ -287,7 +297,7 @@ export default function App() {
             <a href="#reviews" className="hover:text-[#CB997E] transition-colors flex items-center gap-1.5">
               <span>Reviews</span>
               <span className="bg-[#FFE8D6] text-[#3F2E23] text-[11px] px-2 py-0.5 rounded-full font-bold border border-[#E5E1DA]">
-                4.9 ★
+                {siteConfig.averageRating} ★
               </span>
             </a>
             <a href="#contact" className="hover:text-[#CB997E] transition-colors">Pre-Order</a>
@@ -297,9 +307,22 @@ export default function App() {
           {/* Action Buttons */}
           <div className="flex items-center gap-2 sm:gap-3">
             <button
+              onClick={handleOpenAdmin}
+              title={isAdminLoggedIn ? "Admin Portal (Logged In)" : "Admin Portal (Password Required)"}
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-[#3F2E23] hover:text-[#CB997E] bg-[#FFE8D6]/70 hover:bg-[#FFE8D6] border border-[#E5E1DA] px-3 py-2 rounded-full transition-all cursor-pointer"
+            >
+              {isAdminLoggedIn ? (
+                <Settings className="w-3.5 h-3.5 text-[#CB997E]" />
+              ) : (
+                <Lock className="w-3.5 h-3.5 text-[#CB997E]" />
+              )}
+              <span className="hidden sm:inline">{isAdminLoggedIn ? "Admin" : "Admin Login"}</span>
+            </button>
+
+            <button
               onClick={handleShare}
               title="Share restaurant"
-              className="p-2.5 text-[#6B705C] hover:text-[#3F2E23] hover:bg-[#FFE8D6]/50 rounded-full transition-colors hidden sm:flex items-center justify-center"
+              className="p-2.5 text-[#6B705C] hover:text-[#3F2E23] hover:bg-[#FFE8D6]/50 rounded-full transition-colors hidden sm:flex items-center justify-center cursor-pointer"
             >
               <Share2 className="w-4 h-4" />
             </button>
@@ -338,19 +361,19 @@ export default function App() {
                       <Star key={i} className="w-3.5 h-3.5 fill-[#CB997E] text-[#CB997E]" />
                     ))}
                   </div>
-                  <span className="font-bold text-[#3F2E23]">4.9 Stars</span>
+                  <span className="font-bold text-[#3F2E23]">{siteConfig.averageRating} Stars</span>
                   <span className="text-[#6B705C]/40">|</span>
-                  <span className="text-[#6B705C] font-medium">27 Verified Google Reviews</span>
+                  <span className="text-[#6B705C] font-medium">{siteConfig.totalReviewsCount} Verified Google Reviews</span>
                 </div>
 
                 {/* Main Headline with Serif Elegance */}
                 <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl font-black text-[#3F2E23] tracking-tight leading-[1.12] mb-5">
-                  Ilorin’s Favorite <span className="text-[#CB997E] underline decoration-[#CB997E]/50 decoration-wavy decoration-2">Burgers</span> & Crispy Fries
+                  {siteConfig.heroHeadline}
                 </h1>
 
                 {/* Subtitle */}
                 <p className="text-[#2D241E]/80 text-base sm:text-lg lg:text-xl font-normal max-w-2xl mx-auto lg:mx-0 mb-8 leading-relaxed">
-                  Crafted fresh inside TotalEnergies on Emirs Road. Savor sizzling smash burgers, loaded crinkle-cut fries, and crispy seasoned chicken delivered fast or ready for swift pickup.
+                  {siteConfig.heroSubtitle}
                 </p>
 
                 {/* Action Row */}
@@ -398,7 +421,7 @@ export default function App() {
                   {/* Outer Frame with Natural Tones border and shadow */}
                   <div className="relative rounded-3xl overflow-hidden shadow-2xl border-4 border-[#FFE8D6] bg-[#3F2E23] aspect-4/3 sm:aspect-square">
                     <img
-                      src="https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=1000&q=85"
+                      src={siteConfig.heroMainImage}
                       alt="The Metro's Diner Gourmet Cheeseburger"
                       referrerPolicy="no-referrer"
                       className="w-full h-full object-cover transform hover:scale-105 transition-transform duration-700"
@@ -410,22 +433,30 @@ export default function App() {
                       <span className="inline-block bg-[#CB997E] text-white text-xs uppercase font-extrabold px-2.5 py-1 rounded-md mb-1.5 shadow-xs">
                         Diner Favorite
                       </span>
-                      <h2 className="font-serif text-xl sm:text-2xl font-black text-white">Classic Smashed Cheeseburger</h2>
-                      <p className="text-xs sm:text-sm text-[#FFE8D6]/90 font-medium">From ₦4,500 • Melted cheddar & caramelized relish</p>
+                      <h2 className="font-serif text-xl sm:text-2xl font-black text-white">
+                        {menuItems[0]?.name || "Classic Smashed Cheeseburger"}
+                      </h2>
+                      <p className="text-xs sm:text-sm text-[#FFE8D6]/90 font-medium">
+                        From {menuItems[0]?.price || "₦4,500"} • Melted cheddar & caramelized relish
+                      </p>
                     </div>
                   </div>
 
                   {/* Floating badge for Loaded Fries */}
                   <div className="absolute -bottom-6 -left-4 sm:-left-8 bg-[#FDFBF7] rounded-2xl p-3 sm:p-4 shadow-xl border border-[#E5E1DA] flex items-center gap-3 max-w-[240px]">
                     <img
-                      src="https://images.unsplash.com/photo-1585109649139-366815a0d713?auto=format&fit=crop&w=160&q=80"
+                      src={menuItems[1]?.image || "https://images.unsplash.com/photo-1585109649139-366815a0d713?auto=format&fit=crop&w=160&q=80"}
                       alt="Metro Loaded Fries"
                       referrerPolicy="no-referrer"
                       className="w-12 h-12 rounded-xl object-cover flex-shrink-0"
                     />
                     <div className="overflow-hidden">
-                      <p className="text-xs font-bold text-[#3F2E23] truncate">Metro Loaded Fries</p>
-                      <p className="text-[12px] text-[#CB997E] font-black">₦3,800</p>
+                      <p className="text-xs font-bold text-[#3F2E23] truncate">
+                        {menuItems[1]?.name || "Metro Loaded Fries"}
+                      </p>
+                      <p className="text-[12px] text-[#CB997E] font-black">
+                        {menuItems[1]?.price || "₦3,800"}
+                      </p>
                       <p className="text-[10px] text-[#6B705C]">Cheese sauce & minced beef</p>
                     </div>
                   </div>
@@ -433,7 +464,7 @@ export default function App() {
                   {/* Rating Bubble */}
                   <div className="absolute -top-4 -right-4 bg-[#FDFBF7] rounded-2xl px-3.5 py-2 shadow-lg border border-[#E5E1DA] flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-full bg-[#CB997E] flex items-center justify-center text-white font-black text-xs">
-                      4.9
+                      {siteConfig.averageRating}
                     </div>
                     <div className="text-left">
                       <p className="text-xs font-bold text-[#3F2E23] leading-tight">Google Maps</p>
@@ -668,7 +699,7 @@ export default function App() {
 
             {/* Testimonials with var(--cream) background as specified in the Natural Tones design theme */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
-              {REVIEWS.map((review) => (
+              {reviews.map((review) => (
                 <div
                   key={review.id}
                   className="bg-[#FFE8D6] p-6 sm:p-7 rounded-2xl border border-[#E5E1DA] shadow-xs flex flex-col justify-between"
@@ -713,15 +744,15 @@ export default function App() {
             <div className="mt-10 p-5 bg-[#FDFBF7] rounded-2xl border border-[#E5E1DA] max-w-xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left shadow-xs">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-[#CB997E] text-white flex items-center justify-center flex-shrink-0 font-black">
-                  4.9★
+                  {siteConfig.averageRating}★
                 </div>
                 <div>
-                  <p className="text-sm font-bold text-[#3F2E23]">Rated 4.9 out of 5 on Google Maps</p>
-                  <p className="text-xs text-[#6B705C]">Based on 27 verified diner reviews in Ilorin</p>
+                  <p className="text-sm font-bold text-[#3F2E23]">Rated {siteConfig.averageRating} out of 5 on Google Maps</p>
+                  <p className="text-xs text-[#6B705C]">Based on {siteConfig.totalReviewsCount} verified diner reviews in {siteConfig.city}</p>
                 </div>
               </div>
               <a
-                href="https://maps.google.com/?q=The+Metro%27s+Diner+Emirs+Rd+Ilorin"
+                href={siteConfig.googleMapsLink || "https://maps.google.com/?q=The+Metro%27s+Diner+Emirs+Rd+Ilorin"}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-xs font-bold text-[#3F2E23] hover:text-[#CB997E] inline-flex items-center gap-1 underline underline-offset-4 transition-colors"
@@ -749,61 +780,97 @@ export default function App() {
             </div>
 
             <div className="bg-white rounded-3xl border border-[#E5E1DA] p-6 sm:p-9 shadow-xs">
-              {submissionStatus === 'success' && (
-                <div className="mb-6 p-4 rounded-2xl bg-[#FFE8D6]/70 border border-[#CB997E]/50 text-[#3F2E23] flex items-start gap-3.5">
-                  <div className="w-8 h-8 rounded-full bg-[#25D366] text-white flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <CheckCircle2 className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h4 className="font-serif font-bold text-base text-[#3F2E23]">Awesome! Your request has been sent straight to The Metro's Diner!</h4>
-                    <p className="text-xs text-[#6B705C] mt-1">
-                      Our kitchen has logged your details in our system. You can also chat directly on WhatsApp for immediate real-time prep status.
-                    </p>
-                    <div className="mt-3 flex flex-wrap items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={() => setSubmissionStatus('idle')}
-                        className="text-xs font-bold text-[#3F2E23] hover:text-[#CB997E] underline underline-offset-2 transition-colors cursor-pointer"
-                      >
-                        Send another request
-                      </button>
-                      <span className="text-[#E5E1DA]">•</span>
-                      <a
-                        href={getWhatsAppOrderUrl()}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs font-bold text-[#25D366] hover:text-[#1EBE5D] inline-flex items-center gap-1 transition-colors"
-                      >
-                        <MessageCircle className="w-3.5 h-3.5 fill-current" />
-                        <span>Confirm on WhatsApp</span>
-                      </a>
+              <AnimatePresence>
+                {submissionStatus === 'success' && (
+                  <motion.div
+                    key="submission-success-banner"
+                    initial={{ opacity: 0, height: 0, y: -10 }}
+                    animate={{ opacity: 1, height: 'auto', y: 0 }}
+                    exit={{ opacity: 0, height: 0, y: -10, transition: { duration: 0.25, ease: 'easeOut' } }}
+                    className="mb-6 p-4 sm:p-5 rounded-2xl bg-[#FFE8D6] border border-[#CB997E] text-[#3F2E23] flex items-start justify-between gap-3 shadow-sm overflow-hidden"
+                  >
+                    <div className="flex items-start gap-3.5">
+                      <div className="w-8 h-8 rounded-full bg-[#25D366] text-white flex items-center justify-center flex-shrink-0 mt-0.5 shadow-xs">
+                        <CheckCircle2 className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="font-serif font-bold text-base text-[#3F2E23]">Awesome! Your request has been sent straight to The Metro's Diner!</h4>
+                        <p className="text-xs text-[#6B705C] mt-1">
+                          Our kitchen has logged your details in our system. You can also chat directly on WhatsApp for immediate real-time prep status.
+                        </p>
+                        <div className="mt-3 flex flex-wrap items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setSubmissionStatus('idle')}
+                            className="text-xs font-bold text-[#3F2E23] hover:text-[#CB997E] underline underline-offset-2 transition-colors cursor-pointer"
+                          >
+                            Send another request
+                          </button>
+                          <span className="text-[#E5E1DA]">•</span>
+                          <a
+                            href={getWhatsAppOrderUrl()}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs font-bold text-[#25D366] hover:text-[#1EBE5D] inline-flex items-center gap-1 transition-colors"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5 fill-current" />
+                            <span>Confirm on WhatsApp</span>
+                          </a>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              )}
-
-              {submissionStatus === 'error' && (
-                <div className="mb-6 p-4 rounded-2xl bg-[#FFE8D6]/40 border border-red-300 text-red-900 flex items-start gap-3.5">
-                  <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-                  <div className="flex-1">
-                    <h4 className="font-bold text-sm">
-                      {errorMessage || "Something went wrong. Please try placing your order via WhatsApp!"}
-                    </h4>
-                    <p className="text-xs text-red-800/80 mt-1">
-                      Our kitchen is always active on WhatsApp for direct instant orders.
-                    </p>
-                    <a
-                      href={getWhatsAppOrderUrl(customerName ? `Order from ${customerName}` : undefined)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-2.5 inline-flex items-center gap-1.5 bg-[#25D366] hover:bg-[#1EBE5D] text-white text-xs font-bold px-3.5 py-2 rounded-xl shadow-xs transition-colors"
+                    <button
+                      type="button"
+                      onClick={() => setSubmissionStatus('idle')}
+                      className="p-1.5 text-[#6B705C] hover:text-[#3F2E23] rounded-full hover:bg-black/5 transition-colors cursor-pointer flex-shrink-0"
+                      aria-label="Dismiss message"
+                      title="Dismiss notification"
                     >
-                      <MessageCircle className="w-3.5 h-3.5 fill-current" />
-                      <span>Order directly via WhatsApp</span>
-                    </a>
-                  </div>
-                </div>
-              )}
+                      <X className="w-4 h-4" />
+                    </button>
+                  </motion.div>
+                )}
+
+                {submissionStatus === 'error' && (
+                  <motion.div
+                    key="submission-error-banner"
+                    initial={{ opacity: 0, height: 0, y: -10 }}
+                    animate={{ opacity: 1, height: 'auto', y: 0 }}
+                    exit={{ opacity: 0, height: 0, y: -10, transition: { duration: 0.25, ease: 'easeOut' } }}
+                    className="mb-6 p-4 rounded-2xl bg-[#FFE8D6]/40 border border-red-300 text-red-900 flex items-start justify-between gap-3 overflow-hidden"
+                  >
+                    <div className="flex items-start gap-3.5">
+                      <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <h4 className="font-bold text-sm">
+                          {errorMessage || "Something went wrong. Please try placing your order via WhatsApp!"}
+                        </h4>
+                        <p className="text-xs text-red-800/80 mt-1">
+                          Our kitchen is always active on WhatsApp for direct instant orders.
+                        </p>
+                        <a
+                          href={getWhatsAppOrderUrl(customerName ? `Order from ${customerName}` : undefined)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-2.5 inline-flex items-center gap-1.5 bg-[#25D366] hover:bg-[#1EBE5D] text-white text-xs font-bold px-3.5 py-2 rounded-xl shadow-xs transition-colors"
+                        >
+                          <MessageCircle className="w-3.5 h-3.5 fill-current" />
+                          <span>Order directly via WhatsApp</span>
+                        </a>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSubmissionStatus('idle')}
+                      className="p-1.5 text-red-700 hover:text-red-950 rounded-full hover:bg-red-500/10 transition-colors cursor-pointer flex-shrink-0"
+                      aria-label="Dismiss error"
+                      title="Dismiss notification"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               {/* Exact form required: id="contactForm", inputs with id="customerName" and id="orderNotes" */}
               <form id="contactForm" onSubmit={handleContactSubmit} className="space-y-5">
@@ -927,7 +994,7 @@ export default function App() {
                     <div>
                       <h4 className="text-xs font-bold text-[#CB997E] uppercase tracking-wider">Physical Address</h4>
                       <p className="text-sm font-semibold text-[#FDFBF7] mt-0.5 leading-snug">
-                        Emirs Rd, inside TotalEnergies (Station Road Service Station), near Post Office, Ilorin, Kwara State, Nigeria.
+                        {siteConfig.address}
                       </p>
                     </div>
                   </div>
@@ -939,7 +1006,7 @@ export default function App() {
                     <div>
                       <h4 className="text-xs font-bold text-[#CB997E] uppercase tracking-wider">Operating Hours</h4>
                       <p className="text-sm font-semibold text-[#25D366] mt-0.5">
-                        Open Daily until 11:00 PM
+                        {siteConfig.openingHours}
                       </p>
                       <p className="text-xs text-[#E5E1DA]/80">Monday to Sunday (All days)</p>
                     </div>
@@ -952,10 +1019,10 @@ export default function App() {
                     <div>
                       <h4 className="text-xs font-bold text-[#CB997E] uppercase tracking-wider">Phone & Inquiries</h4>
                       <a
-                        href="tel:07036192594"
+                        href={`tel:${siteConfig.phone.replace(/\s+/g, '')}`}
                         className="text-sm font-bold text-white hover:text-[#CB997E] transition-colors mt-0.5 block"
                       >
-                        0703 619 2594
+                        {siteConfig.phone}
                       </a>
                       <p className="text-xs text-[#E5E1DA]/80">Direct kitchen line & dispatch</p>
                     </div>
@@ -974,11 +1041,11 @@ export default function App() {
                     <span>Order on WhatsApp</span>
                   </a>
                   <a
-                    href="tel:07036192594"
+                    href={`tel:${siteConfig.phone.replace(/\s+/g, '')}`}
                     className="inline-flex items-center gap-2 bg-[#2D241E] hover:bg-[#382b22] text-[#FFE8D6] font-bold text-sm px-5 py-3.5 rounded-xl transition-all border border-[#523F33] active:scale-95"
                   >
                     <Phone className="w-4 h-4 text-[#CB997E]" />
-                    <span>Call 0703 619 2594</span>
+                    <span>Call {siteConfig.phone}</span>
                   </a>
                 </div>
               </div>
@@ -1004,11 +1071,11 @@ export default function App() {
                       <div className="w-12 h-12 rounded-full bg-[#CB997E]/20 text-[#CB997E] flex items-center justify-center mx-auto mb-3 border border-[#CB997E]/40 animate-pulse">
                         <MapPin className="w-6 h-6" />
                       </div>
-                      <p className="font-serif text-sm font-bold text-[#FFE8D6]">The Metro's Diner Ilorin</p>
+                      <p className="font-serif text-sm font-bold text-[#FFE8D6]">{siteConfig.restaurantName} Ilorin</p>
                       <p className="text-xs text-[#E5E1DA]/80 mt-0.5">Station Road Service Station</p>
                       
                       <a
-                        href="https://maps.google.com/?q=The+Metro%27s+Diner+Emirs+Rd+Ilorin"
+                        href={siteConfig.googleMapsLink || "https://maps.google.com/?q=The+Metro%27s+Diner+Emirs+Rd+Ilorin"}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="mt-4 inline-flex items-center gap-1.5 bg-[#CB997E] hover:bg-[#b8856c] text-[#2D241E] text-xs font-black px-4 py-2 rounded-xl transition-all shadow-md"
@@ -1030,12 +1097,19 @@ export default function App() {
 
             {/* Bottom Copyright in Natural Tones */}
             <div className="mt-16 pt-8 border-t border-[#523F33] flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-[#E5E1DA]/70">
-              <p>© {new Date().getFullYear()} The Metro's Diner • TotalEnergies Service Station, Ilorin.</p>
-              <div className="flex items-center gap-6">
+              <p>© {new Date().getFullYear()} {siteConfig.restaurantName} • TotalEnergies Service Station, {siteConfig.city}.</p>
+              <div className="flex flex-wrap items-center gap-5">
                 <a href="#menu" className="hover:text-white transition-colors">Menu</a>
                 <a href="#reviews" className="hover:text-white transition-colors">Reviews</a>
                 <a href="#contact" className="hover:text-white transition-colors">Pre-Order</a>
                 <a href="#location" className="hover:text-white transition-colors">Find Us</a>
+                <button
+                  onClick={handleOpenAdmin}
+                  className="text-[#CB997E] hover:text-white font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                >
+                  {isAdminLoggedIn ? <Settings className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
+                  <span>{isAdminLoggedIn ? "Admin Panel" : "Admin Login"}</span>
+                </button>
                 <a
                   href={getWhatsAppOrderUrl()}
                   target="_blank"
@@ -1050,11 +1124,23 @@ export default function App() {
         </section>
       </main>
 
+      {/* Floating Admin Button on Desktop (Bottom Right) */}
+      <button
+        id="floating-admin-btn"
+        onClick={handleOpenAdmin}
+        className="fixed bottom-6 right-6 z-40 bg-[#3F2E23] hover:bg-[#2D241E] text-[#FFE8D6] border border-[#523F33] shadow-2xl px-3.5 py-2.5 rounded-full text-xs font-bold transition-all hidden md:flex items-center gap-2 hover:scale-105 active:scale-95 group cursor-pointer"
+        title={isAdminLoggedIn ? "Admin Control: Edit all food images, prices, and website details" : "Admin Login: Password Protected Access"}
+      >
+        <span className={`w-2 h-2 rounded-full ${isAdminLoggedIn ? 'bg-[#25D366] animate-pulse' : 'bg-[#CB997E]'}`}></span>
+        {isAdminLoggedIn ? <Sliders className="w-4 h-4 text-[#CB997E]" /> : <Lock className="w-4 h-4 text-[#CB997E]" />}
+        <span>{isAdminLoggedIn ? "Admin Panel" : "Admin Login"}</span>
+      </button>
+
       {/* Floating Mobile Bottom Action Bar */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#FDFBF7]/95 backdrop-blur-lg border-t border-[#E5E1DA] p-3 shadow-2xl">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#FDFBF7]/95 backdrop-blur-lg border-t border-[#E5E1DA] p-3 shadow-2xl">
         <div className="flex items-center gap-2">
           <a
-            href="tel:07036192594"
+            href={`tel:${siteConfig.phone.replace(/\s+/g, '')}`}
             className="flex items-center justify-center p-3.5 rounded-xl bg-[#FFE8D6] text-[#3F2E23] border border-[#E5E1DA] active:scale-95 transition-transform"
             aria-label="Call Diner"
           >
@@ -1073,12 +1159,52 @@ export default function App() {
         </div>
       </div>
 
-      {/* Toast Notification for share copy */}
-      {copiedNotification && (
-        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 bg-[#3F2E23] text-[#FFE8D6] text-xs font-semibold px-4 py-2 rounded-full shadow-lg border border-[#523F33]">
-          Link copied to clipboard!
-        </div>
-      )}
+      {/* Toast Notification for share copy with smooth closing animation */}
+      <AnimatePresence>
+        {copiedNotification && (
+          <motion.div
+            key="share-copied-toast"
+            initial={{ opacity: 0, y: 15, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 15, scale: 0.95, transition: { duration: 0.25, ease: 'easeOut' } }}
+            className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 bg-[#3F2E23] text-[#FFE8D6] text-xs font-semibold px-4 py-2 rounded-full shadow-lg border border-[#523F33]"
+          >
+            Link copied to clipboard!
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Buyers Welcome Pop-up */}
+      <WelcomePopup
+        isOpen={showWelcomePopup}
+        onClose={() => setShowWelcomePopup(false)}
+        config={siteConfig}
+        onExploreMenu={() => {
+          const el = document.getElementById('menu');
+          if (el) el.scrollIntoView({ behavior: 'smooth' });
+        }}
+        onWhatsAppOrder={() => window.open(getWhatsAppOrderUrl(), '_blank')}
+      />
+
+      {/* Admin Login Gateway with Password Protection */}
+      <AdminLoginModal
+        isOpen={showAdminLoginModal}
+        onClose={() => setShowAdminLoginModal(false)}
+        onLoginSuccess={handleAdminLoginSuccess}
+        correctPassword={siteConfig.adminPassword || 'admin'}
+      />
+
+      {/* Admin Panel Modal for editing all food images, prices, and site texts */}
+      <AdminModal
+        isOpen={showAdminModal}
+        onClose={() => setShowAdminModal(false)}
+        onLogout={handleAdminLogout}
+        menuItems={menuItems}
+        onSaveMenuItems={handleSaveMenuItems}
+        siteConfig={siteConfig}
+        onSaveSiteConfig={handleSaveSiteConfig}
+        onResetDefaults={handleResetDefaults}
+      />
     </div>
   );
 }
